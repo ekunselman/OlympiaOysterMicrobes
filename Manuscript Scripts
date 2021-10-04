@@ -410,3 +410,17 @@ kruskal.test(Current_Natural_Log_Ratio ~ geo_loc_name, data = diffs2)
 # p value p-value = 2.862e-07
 library(dunn.test)
 dunn.test(diffs2$Current_Natural_Log_Ratio, diffs2$geo_loc_name)
+
+# Run correlation between salinity, temperature, DO and log ratios of these taxa to determine whether site differences are due to these variables or not 
+ggline(diffs2, x = "Sal", y = "Current_Natural_Log_Ratio")
+lmDiffsSal<-lm(Current_Natural_Log_Ratio ~ Sal, data = diffs2)
+summary(lmDiffsSal)
+
+ggline(diffs2, x = "Temp", y = "Current_Natural_Log_Ratio")
+lmDiffsT<-lm(Current_Natural_Log_Ratio ~ Temp, data = diffs2)
+summary(lmDiffsT)
+
+ggline(diffs2, x = "DO", y = "Current_Natural_Log_Ratio")
+lmDiffsDO<-lm(Current_Natural_Log_Ratio ~ DO, data = diffs2)
+summary(lmDiffsDO)
+
