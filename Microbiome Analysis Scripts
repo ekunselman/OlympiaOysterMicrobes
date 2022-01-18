@@ -233,32 +233,92 @@ ggsave("Shannon_Silva_sample_type.pdf", plot = shannon_plot, height=3, width=6, 
 
 # STEP 6: DEICODE/RPCA (NONPHYLOGENETIC)
 !qiime deicode rpca \
-  --i-table Silva_Analysis/table-filtered.qza \
-  --p-min-feature-count 1 \
-  --p-min-sample-count 1000 \
-  --o-biplot Silva_Analysis/rpca_ordination_1000.qza \
-  --o-distance-matrix Silva_Analysis/rpca_distance_matrix_1000.qza
+    --i-table Silva_Analysis/table-filtered.qza \
+    --p-min-feature-count 1 \
+    --p-min-sample-count 1920 \
+    --o-biplot Silva_Analysis/rpca_ordination_1920.qza \
+    --o-distance-matrix Silva_Analysis/rpca_distance_matrix_1920.qza
 # visualize ##FIGURE 2B
 !qiime emperor biplot \
-  --i-biplot Silva_Analysis/rpca_ordination_1000.qza \
-  --m-sample-metadata-file metadata.tsv \
-  --m-feature-metadata-file Taxonomy/silva-taxonomy.qza \
-  --o-visualization rpca_1000_biplot.qzv \
-  --p-number-of-features 8
-# visualize with less features
-!qiime emperor biplot \
-  --i-biplot Silva_Analysis/rpca_ordination_1000.qza \
-  --m-sample-metadata-file metadata.tsv \
-  --m-feature-metadata-file Taxonomy/silva-taxonomy.qza \
-  --o-visualization rpca_1000_biplot_4feat.qzv \
-  --p-number-of-features 4
+    --i-biplot Silva_Analysis/rpca_ordination_1920.qza \
+    --m-sample-metadata-file metadata.tsv \
+    --m-feature-metadata-file Taxonomy/silva-taxonomy.qza \
+    --o-visualization Silva_analysis/rpca_1920_biplot.qzv \
+    --p-number-of-features 8
+# generate qurro plot from rpca to view feature loading ratios
+!qiime qurro loading-plot \
+    --i-ranks Silva_Analysis/rpca_ordination_1920.qza \
+    --i-table Silva_Analysis/table-filtered.qza \
+    --m-sample-metadata-file metadata.tsv \
+    --m-feature-metadata-file Taxonomy/silva-taxonomy.qza \
+    --o-visualization Silva_analysis/rpca_1920_qurro_plot.qzv
 # test significance for sample type
 !qiime diversity beta-group-significance \
-  --i-distance-matrix Silva_Analysis/rpca_distance_matrix_1000.qza \
-  --m-metadata-file metadata.tsv \
-  --m-metadata-column sample_type \
-  --p-method permanova \
-  --o-visualization Silva_Analysis/rpca_sample_type_significance.qzv
+    --i-distance-matrix Silva_Analysis/rpca_distance_matrix_1920.qza \
+    --m-metadata-file metadata.tsv \
+    --m-metadata-column sample_type \
+    --p-method permanova \
+    --o-visualization Silva_Analysis/rpca_1920_sample_type_significance.qzv \
+    --p-pairwise
+# test habitat type significance for 1920
+!qiime diversity beta-group-significance \
+    --i-distance-matrix Silva_Analysis/rpca_distance_matrix_1920.qza \
+    --m-metadata-file metadata.tsv \
+    --m-metadata-column benthic_substrate \
+    --p-method permanova \
+    --o-visualization Silva_Analysis/rpca_1920_habitat_significance.qzv \
+    --p-pairwise"
+# test habitat type significance for 1920 with interacting terms\n",
+!qiime diversity adonis \
+    --i-distance-matrix Silva_Analysis/rpca_distance_matrix_1920.qza \
+    --m-metadata-file metadata.tsv \
+    --o-visualization Silva_Analysis/rpca_1920_habitat_significance_adonis.qzv \
+    --p-formula benthic_substrate+sample_type+geo_loc_name
+
+#[R code for determining pairwise beta diversity distances from gut samples]#
+# Kruskal Wallis stats on Beta Diversity Significance of Sample Type
+
+# rpca_1920_sample_type_significance.qzv was opened in Qiime2 view and the raw data was downloaded in tsv format. A column was added to concatenate the groups being compared
+distances<-readr::read_tsv("rpca_1920_pairwise_sampletype_raw_data.tsv")
+
+head(distances)
+
+# Look at boxplot to confirm similarity to Qiime2 output
+library("ggpubr")
+ggboxplot(distances, x = "Comparison", y = "Distance")
+
+#Run Kruskal-wallis test (one way anova for non-parametric data) to determine if significant differences between sample types)
+kruskal.test(Distance ~ Comparison, data = distances)
+
+#Filter so just looking at whole gut comparisons
+library(dplyr)
+gut_distances<-filter(distances, Group1=="whole gut", .preserve = TRUE)
+ggboxplot(gut_distances, x = "Comparison", y = "Distance")
+
+#Kruskall-wallis
+kruskal.test(Distance ~ Comparison, data = gut_distances)
+
+#Run post hoc test to determine what is most similar to gut
+library(dunn.test)
+dunn.test(gut_distances$Distance, gut_distances$Comparison)
+
+#All significant  - compare means
+
+group_by(gut_distances, Comparison) %>%
+  summarise(
+    count = n(),
+    mean = mean(Distance, na.rm=TRUE),
+    sd = sd(Distance, na.rm=TRUE),
+    median = median(Distance, na.rm=TRUE),
+    IQR = IQR(Distance, na.rm=TRUE)
+  )
+#Comparison                count  mean    sd median   IQR
+#<chr>                     <int> <dbl> <dbl>  <dbl> <dbl>
+#1 whole gut-biofilm          1127 1.67  0.498  1.65  0.582
+#2 whole gut-marine sediment  1176 2.13  0.604  2.01  0.923
+#3 whole gut-seawater         1029 2.28  0.459  2.31  0.673
+#4 whole gut-whole gut        1176 0.627 0.275  0.605 0.385
+#[end R code]#
 
 # STEP 7: EMPRESS PHYLOGENETIC TREE GENERATION FOR UNIDENTIFIED OTU PLACEMENT
 !qiime empress community-plot \
